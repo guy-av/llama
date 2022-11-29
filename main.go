@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 	"io/fs"
 	"math"
 	"os"
@@ -693,20 +693,33 @@ func (m *model) preview() {
 		return
 	}
 
-	file, err := os.Open(filePath)
-	defer file.Close()
+	buf, err := runPreviewCmd(filePath)
 	if err != nil {
 		m.previewContent = err.Error()
 		return
 	}
-	content, _ := io.ReadAll(file)
 
 	switch {
-	case utf8.Valid(content):
-		m.previewContent = Replace(string(content), "\t", "    ", -1)
+	case utf8.Valid(buf.Bytes()):
+		m.previewContent = Replace(string(buf.String()), "\t", "    ", -1)
 	default:
 		m.previewContent = warning.Render("No preview available")
 	}
+}
+
+func runPreviewCmd(filePath string) (*bytes.Buffer, error) {
+	var buf bytes.Buffer
+	cmd := exec.Command("bat", "-pP", "--color=always", filePath)
+	cmd.Stdout = &buf
+
+	err := cmd.Start()
+	if err != nil {
+		return nil, err
+	}
+
+	defer cmd.Wait()
+
+	return &buf, nil
 }
 
 func (m *model) performPendingDeletions() {
